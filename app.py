@@ -391,6 +391,13 @@ def copy_post_button(text_to_copy: str) -> None:
     )
 
 
+class _NoRedirectHandler(urllib_request.HTTPRedirectHandler):
+    """Stop urllib from auto-following redirects so we can handle them ourselves."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 def _is_timeout(exc: BaseException) -> bool:
     """True if the exception (or the reason wrapped inside a URLError) is a timeout."""
     timeout_types = (TimeoutError, socket.timeout)
@@ -487,16 +494,56 @@ def send_to_google_sheet(
             method="POST",
         )
 
-        with urllib_request.urlopen(req, timeout=APPS_SCRIPT_TIMEOUT_SECONDS) as response:
-            response_text = response.read().decode("utf-8", errors="replace")
-            status_code = getattr(response, "status", 200)
+        unconfirmed = (
+            SAVE_UNCONFIRMED,
+            "The confirmation from Google Sheets could not be read, but your submission was sent.",
+        )
 
-        if status_code < 200 or status_code >= 300:
+        # Apps Script runs doPost() first and then answers with a 302 redirect to
+        # a one-time result URL. We handle that redirect ourselves: once the 302
+        # arrives, the row has already been written. Errors while fetching the
+        # result URL (e.g. HTTP 404) therefore do NOT mean the save failed.
+        opener = urllib_request.build_opener(_NoRedirectHandler)
+        redirect_url = ""
+        response_text = ""
+        status_code = 200
+
+        try:
+            with opener.open(req, timeout=APPS_SCRIPT_TIMEOUT_SECONDS) as response:
+                response_text = response.read().decode("utf-8", errors="replace")
+                status_code = getattr(response, "status", 200)
+        except urllib_error.HTTPError as exc:
+            if exc.code in (301, 302, 303, 307, 308) and exc.headers.get("Location"):
+                redirect_url = exc.headers.get("Location", "")
+            else:
+                raise
+
+        if redirect_url:
+            try:
+                follow_req = urllib_request.Request(
+                    redirect_url,
+                    headers={"User-Agent": "ValidationLoop/1.0"},
+                    method="GET",
+                )
+                with urllib_request.urlopen(
+                    follow_req, timeout=APPS_SCRIPT_TIMEOUT_SECONDS
+                ) as response:
+                    response_text = response.read().decode("utf-8", errors="replace")
+                    status_code = getattr(response, "status", 200)
+            except Exception:
+                # The POST was already received by Apps Script.
+                return unconfirmed
+
+            if status_code < 200 or status_code >= 300:
+                return unconfirmed
+        elif status_code < 200 or status_code >= 300:
             return SAVE_FAILED, f"Google Sheets save failed: HTTP {status_code}."
 
         try:
             result = json.loads(response_text)
         except json.JSONDecodeError:
+            if redirect_url:
+                return unconfirmed
             return SAVE_FAILED, "Google Sheets save failed: Apps Script returned an invalid response."
 
         if not result.get("success"):
