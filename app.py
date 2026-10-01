@@ -334,13 +334,9 @@ It can also guide competitor research, fake-door tests, landing-page experiments
 
 🔗 https://validationloop.streamlit.app/"""
 
-SIGNIN_MESSAGE = """We’ll reach out to you first once Validation Loop is ready. We’re working continuously to bring it to completion.
-
-Thank you for your interest and support.
-
-You are signed up for the early-access list. We’ll email you when Validation Loop is ready to use.
-
-If you have any questions, please email [gR1Ee@example.com](mailto:y.india.main@gmail.com)"""
+SIGNIN_MESSAGE = """We’ll reach out to you first once Validation Loop is ready. We’re working continuously to bring it to completion. Thank you for your interest and support. You are signed up for the early-access
+list. 
+We’ll email you when Validation Loop is ready to use. If you have any questions, please email [y.india.main@gmail.com](mailto:y.india.main@gmail.com)"""
 
 
 def valid_post_url(value: str | None) -> bool:
@@ -776,7 +772,7 @@ if signin_clicked and not already_sent:
             st.session_state.signin_message = SIGNIN_MESSAGE
             st.balloons()
         else:
-            st.session_state.signin_error = SIGNIN_MESSAGE
+            st.session_state.signin_error = SIGNIN_ERROR_MESSAGE
 
 # Success message (persists across reruns so the user still sees it).
 if st.session_state.signin_message:
