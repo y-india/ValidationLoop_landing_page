@@ -332,7 +332,7 @@ It can also guide competitor research, fake-door tests, landing-page experiments
 
 **Not just a chatbot. A validation loop.**
 
-🔗 [LINK]"""
+🔗 https://validationloop.streamlit.app/"""
 
 SIGNIN_MESSAGE = """We’ll reach out to you first once Validation Loop is ready. We’re working continuously to bring it to completion.
 
@@ -706,7 +706,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 copy_post_button(SHARE_POST_TEXT)
 
 st.caption(
-    "Replace [LINK] with your ValidationLoop link, publish the post, then paste the post link below."
+    "Copy the text above and paste it into your social media post. Make sure to include the link to your post in the field below."
 )
 
 post_url = st.text_input(
