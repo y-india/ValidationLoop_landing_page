@@ -1,7 +1,12 @@
+import json
+import socket
 import time
+import uuid
+from datetime import datetime, timezone
+from urllib import error as urllib_error
+from urllib import request as urllib_request
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 
 MAIN_PAGE = "app.py"
@@ -9,48 +14,183 @@ MAIN_PAGE = "app.py"
 # ============================================================
 # EDIT YOUR SURVEY HERE
 # ============================================================
-# Change only "question" to change what the user sees.
-# Keep "key" unchanged if you want to keep the same Google
-# Sheets columns used by app.py / your Apps Script.
-#
-# The answer choices are currently fixed to Yes / No.
+# Keep the "key" values unchanged so the existing Google Sheets
+# columns used by app.py / your Apps Script continue to work.
 # ============================================================
+
+
+APPS_SCRIPT_TIMEOUT_SECONDS = 60
+
+
+class _NoRedirectHandler(urllib_request.HTTPRedirectHandler):
+    """Stop urllib from auto-following Apps Script redirects."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _is_timeout(exc: BaseException) -> bool:
+    timeout_types = (TimeoutError, socket.timeout)
+    if isinstance(exc, timeout_types):
+        return True
+    if isinstance(exc, urllib_error.URLError):
+        reason = getattr(exc, "reason", None)
+        if isinstance(reason, timeout_types):
+            return True
+        if reason is not None and "timed out" in str(reason).lower():
+            return True
+    return "timed out" in str(exc).lower()
+
+
+def send_survey_start(*, submission_id: str, name: str, email: str, started_at: float) -> tuple[bool, str]:
+    """Create the STARTED row in Google Sheets."""
+    try:
+        apps_script = st.secrets["apps_script"]
+        endpoint = str(apps_script["url"]).strip()
+        token = str(apps_script.get("token", "")).strip()
+
+        if not endpoint:
+            return False, "Google Sheets is not configured: Apps Script URL is empty."
+
+        started_iso = datetime.fromtimestamp(
+            started_at,
+            tz=timezone.utc,
+        ).isoformat()
+
+        payload = {
+            "token": token,
+            "action": "start",
+            "sheet_name": "Signups",
+            "submission_id": submission_id,
+            "timestamp_utc": started_iso,
+            "name": name.strip(),
+            "email": email.strip(),
+            "survey_started_utc": started_iso,
+            "survey_completed": "NO",
+            "status": "STARTED",
+        }
+
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        req = urllib_request.Request(
+            endpoint,
+            data=body,
+            headers={
+                "Content-Type": "application/json; charset=utf-8",
+                "User-Agent": "ValidationLoop/1.0",
+            },
+            method="POST",
+        )
+
+        opener = urllib_request.build_opener(_NoRedirectHandler)
+        redirect_url = ""
+        response_text = ""
+        status_code = 200
+
+        try:
+            with opener.open(req, timeout=APPS_SCRIPT_TIMEOUT_SECONDS) as response:
+                response_text = response.read().decode("utf-8", errors="replace")
+                status_code = getattr(response, "status", 200)
+        except urllib_error.HTTPError as exc:
+            if exc.code in (301, 302, 303, 307, 308) and exc.headers.get("Location"):
+                redirect_url = exc.headers.get("Location", "")
+            else:
+                raise
+
+        if redirect_url:
+            try:
+                follow_req = urllib_request.Request(
+                    redirect_url,
+                    headers={"User-Agent": "ValidationLoop/1.0"},
+                    method="GET",
+                )
+                with urllib_request.urlopen(
+                    follow_req,
+                    timeout=APPS_SCRIPT_TIMEOUT_SECONDS,
+                ) as response:
+                    response_text = response.read().decode("utf-8", errors="replace")
+                    status_code = getattr(response, "status", 200)
+            except Exception:
+                # The POST reached Apps Script. The start is therefore treated as
+                # accepted. The same submission_id makes a retry idempotent.
+                return True, "Survey start was sent."
+
+        if status_code < 200 or status_code >= 300:
+            return False, f"Google Sheets start failed: HTTP {status_code}."
+
+        try:
+            result = json.loads(response_text)
+        except json.JSONDecodeError:
+            return True, "Survey start was sent."
+
+        if not result.get("success"):
+            return False, f"Google Sheets start failed: {result.get('error', 'Unknown error.')}"
+
+        return True, "Survey started."
+
+    except KeyError as exc:
+        return False, f"Google Sheets configuration is missing in .streamlit/secrets.toml: {exc}"
+    except urllib_error.HTTPError as exc:
+        try:
+            detail = exc.read().decode("utf-8", errors="replace")
+        except Exception:
+            detail = str(exc)
+        return False, f"Google Sheets request failed (HTTP {exc.code}): {detail[:300]}"
+    except Exception as exc:
+        if _is_timeout(exc):
+            return True, "Survey start was sent."
+        if isinstance(exc, urllib_error.URLError):
+            return False, f"Could not reach the Google Sheets Apps Script: {exc.reason}"
+        return False, f"Google Sheets start failed: {exc}"
+
+
 SURVEY_QUESTIONS = [
     {
         "key": "q1_idea",
-        "question": "Do you have a specific business idea you want to validate?",
+        "question": "Did you watch the demo video?",
+        "type": "yes_no",
     },
     {
         "key": "q2_target_customer",
-        "question": "Do you know who your specific target customer is?",
+        "question": "Are you currently working on an idea?",
+        "type": "yes_no",
     },
     {
         "key": "q3_problem",
-        "question": "Have you clearly identified a problem that this customer has?",
+        "question": "Have you ever tried validating any idea?",
+        "type": "yes_no",
     },
     {
         "key": "q4_current_evidence",
-        "question": "Do you already have evidence that this problem exists?",
+        "question": "What did you like most about this web app approach?",
+        "type": "text",
     },
     {
         "key": "q5_reach_users",
-        "question": "Do you know how you would reach at least 20 people in your target group?",
+        "question": "Have you ever read books on idea validation like The Mom Test or Jobs to Be Done? (If not, you do not need to read them now!)",
+        "type": "yes_no",
     },
     {
         "key": "q6_alternatives",
-        "question": "Do you know what alternatives or competitors your target customers use today?",
+        "question": "What is your profession?",
+        "type": "profession",
+        "options": [
+            "Student (School)",
+            "Student (College)",
+            "Working",
+            "Graduate",
+        ],
     },
     {
         "key": "q7_willingness_to_pay",
-        "question": "Do you have evidence that your target customers would be willing to pay for a solution?",
+        "question": "In which area is your idea about?",
+        "type": "text",
     },
     {
         "key": "q8_biggest_assumption",
-        "question": "Have you identified the biggest assumption that could invalidate your idea?",
+        "question": "Do you have any question?",
+        "type": "question",
     },
 ]
-
-SURVEY_SECONDS = 2 * 60
 
 
 st.set_page_config(
@@ -137,14 +277,6 @@ st.markdown(
             margin-bottom: 1.25rem;
         }
 
-        .timer {
-            text-align: center;
-            font-size: 1.4rem;
-            font-weight: 800;
-            color: var(--blue-2);
-            margin: 0.5rem 0 1rem 0;
-        }
-
         div[data-testid="stTextArea"] textarea,
         div[data-testid="stTextInput"] input {
             background: #15191f !important;
@@ -180,9 +312,6 @@ if "form_name" not in st.session_state:
 if not st.session_state.form_name or not st.session_state.form_email:
     st.switch_page(MAIN_PAGE)
 
-if "survey_started_at" not in st.session_state:
-    st.session_state.survey_started_at = None
-
 
 st.markdown(
     """
@@ -200,10 +329,9 @@ st.markdown(
 st.markdown(
     """
     <div class="survey-card">
-        <h3 style="margin:0 0 0.35rem 0;">2-minute validation survey</h3>
+        <h3 style="margin:0 0 0.35rem 0;">Validation survey</h3>
         <p style="color:#949cab; margin:0;">
-            Answer each question with Yes or No.
-            Keep your answers based on what you know today.
+            Answer each question based on what you know today.
         </p>
     </div>
     """,
@@ -211,86 +339,113 @@ st.markdown(
 )
 
 
-# Start the timer only when the user explicitly starts the survey.
+# The questions are generated from SURVEY_QUESTIONS above.
+# To edit the survey, change the question text and type there.
+# Start the survey and create the Google Sheets row at the same time.
+if "survey_started_at" not in st.session_state:
+    st.session_state.survey_started_at = None
+
+if "submission_id" not in st.session_state:
+    st.session_state.submission_id = ""
+
 if st.session_state.survey_started_at is None:
     if st.button("Start survey", type="primary", use_container_width=True):
-        st.session_state.survey_started_at = time.time()
-        st.rerun()
+        submission_id = st.session_state.submission_id or uuid.uuid4().hex
+        started_at = time.time()
 
-    st.caption("The timer starts when you click Start survey.")
+        ok, message = send_survey_start(
+            submission_id=submission_id,
+            name=st.session_state.form_name,
+            email=st.session_state.form_email,
+            started_at=started_at,
+        )
+
+        if ok:
+            st.session_state.submission_id = submission_id
+            st.session_state.survey_started_at = started_at
+            st.rerun()
+        else:
+            st.error(message)
+
+    st.caption("Click Start survey when you are ready.")
     st.stop()
 
 
-started_at = float(st.session_state.survey_started_at)
-deadline = started_at + SURVEY_SECONDS
-remaining = max(0, int(deadline - time.time()))
+answers = {}
 
+for index, item in enumerate(SURVEY_QUESTIONS, start=1):
+    question_type = item["type"]
+    key = item["key"]
+    question = item["question"]
 
-# Visual countdown. The server-side deadline check below remains authoritative.
-components.html(
-    f"""
-    <div class="timer" id="timer">02:00 remaining</div>
-    <script>
-        const deadlineMs = {int(deadline * 1000)};
-        const timer = document.getElementById("timer");
-
-        function updateTimer() {{
-            const remaining = Math.max(0, deadlineMs - Date.now());
-            const totalSeconds = Math.floor(remaining / 1000);
-            const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
-            const seconds = (totalSeconds % 60).toString().padStart(2, "0");
-            timer.textContent = minutes + ":" + seconds + " remaining";
-
-            if (totalSeconds <= 0) {{
-                timer.textContent = "Time is up";
-            }}
-        }}
-
-        updateTimer();
-        setInterval(updateTimer, 1000);
-    </script>
-    """,
-    height=45,
-)
-
-
-# The questions are generated from SURVEY_QUESTIONS above.
-# To edit the survey, change the question text there.
-with st.form("two_minute_survey"):
-    answers = {}
-
-    for index, item in enumerate(SURVEY_QUESTIONS, start=1):
-        answers[item["key"]] = st.radio(
-            f"{index}. {item['question']}",
+    if question_type == "yes_no":
+        answers[key] = st.radio(
+            f"{index}. {question}",
             options=["Yes", "No"],
             index=None,
-            key=f"survey_{item['key']}",
+            key=f"survey_{key}",
             horizontal=True,
         )
 
-    submitted = st.form_submit_button(
-        "Complete survey",
-        type="primary",
-        use_container_width=True,
-        disabled=remaining <= 0,
-    )
+    elif question_type == "text":
+        answers[key] = st.text_area(
+            f"{index}. {question}",
+            placeholder="Write your answer here...",
+            key=f"survey_{key}",
+        )
+
+    elif question_type == "profession":
+        answers[key] = st.radio(
+            f"{index}. {question}",
+            options=item["options"],
+            index=None,
+            key=f"survey_{key}",
+            horizontal=True,
+        )
+
+    elif question_type == "question":
+        question_choice = st.radio(
+            f"{index}. {question}",
+            options=["Any question", "No question"],
+            index=None,
+            key=f"survey_{key}_choice",
+            horizontal=True,
+        )
+
+        if question_choice == "Any question":
+            question_text = st.text_area(
+                "Your question",
+                placeholder="Write your question here...",
+                key=f"survey_{key}_text",
+            )
+            answers[key] = question_text.strip()
+        elif question_choice == "No question":
+            answers[key] = "No question"
+        else:
+            answers[key] = None
+
+
+submitted = st.button(
+    "Complete survey",
+    type="primary",
+    use_container_width=True,
+)
 
 
 if submitted:
-    now = time.time()
+    missing_answers = []
 
-    if now > deadline:
-        st.error("The 2-minute survey window has ended. Please restart the survey.")
-        st.session_state.survey_started_at = None
-        st.rerun()
+    for index, item in enumerate(SURVEY_QUESTIONS, start=1):
+        answer = answers.get(item["key"])
+        if answer is None or (isinstance(answer, str) and not answer.strip()):
+            missing_answers.append(index)
 
-    # Require an answer to every question.
-    if any(answer not in {"Yes", "No"} for answer in answers.values()):
+    if missing_answers:
         st.error("Please answer every survey question before continuing.")
     else:
         st.session_state.survey_answers = answers
-        st.session_state.survey_completed_at = now
-        st.session_state.survey_duration_seconds = now - started_at
+        st.session_state.survey_completed_at = time.time()
+        st.session_state.survey_duration_seconds = None
         st.session_state.survey_completed = True
 
         st.success("Survey completed.")
