@@ -336,7 +336,11 @@ It can also guide competitor research, fake-door tests, landing-page experiments
 
 SIGNIN_MESSAGE = """We’ll reach out to you first once Validation Loop is ready. We’re working continuously to bring it to completion.
 
-Thank you for your interest and support."""
+Thank you for your interest and support.
+
+You are signed up for the early-access list. We’ll email you when Validation Loop is ready to use.
+
+If you have any questions, please email [gR1Ee@example.com](mailto:y.india.main@gmail.com)"""
 
 
 def valid_post_url(value: str | None) -> bool:
