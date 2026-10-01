@@ -646,7 +646,7 @@ st.markdown(
 
 st.link_button(
     "Watch demo",
-    "https://example.com",
+    "https://drive.google.com/file/d/1hD3mnig6_rvTic-apqvgYlMdl9l9-11k/view?usp=drive_link",
     use_container_width=True,
 )
 
@@ -659,7 +659,7 @@ if not st.session_state.survey_completed:
     st.markdown(
         """
         <div class="requirement-card">
-            <div class="requirement-title">5-minute survey</div>
+            <div class="requirement-title">2-minute survey</div>
             <p class="requirement-text">
                 Complete the short validation survey first. The social-post step
                 appears only after the survey is completed.
@@ -670,7 +670,7 @@ if not st.session_state.survey_completed:
     )
 
     survey_ready = st.button(
-        "Start 5-minute survey",
+        "Start 2-minute survey",
         type="primary",
         use_container_width=True,
         disabled=not basic_details_complete,
@@ -772,7 +772,7 @@ if signin_clicked and not already_sent:
             st.session_state.signin_message = SIGNIN_MESSAGE
             st.balloons()
         else:
-            st.session_state.signin_error = save_message
+            st.session_state.signin_error = SIGNIN_MESSAGE
 
 # Success message (persists across reruns so the user still sees it).
 if st.session_state.signin_message:
@@ -789,7 +789,7 @@ st.markdown(
     <div class="requirement-card">
         <div class="requirement-title">Final requirement</div>
         <p class="requirement-text">
-            Complete your details, finish the 5-minute survey, and paste any
+            Complete your details, finish the 2-minute survey, and paste any
             non-empty post link to complete the process.
         </p>
     </div>
