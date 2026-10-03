@@ -641,6 +641,11 @@ email_valid = bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", clean_email))
 basic_details_complete = bool(clean_name and email_valid)
 st.markdown("<div style='height: 0.55rem'></div>", unsafe_allow_html=True)
 
+if st.button("What is ValidationLoop", type="secondary", use_container_width=True):
+    st.switch_page("pages/info.py")
+
+st.markdown("<div style='height: 0.55rem'></div>", unsafe_allow_html=True)
+
 st.markdown(
     """
     <div class="post-box" style="margin-top: 0;">
