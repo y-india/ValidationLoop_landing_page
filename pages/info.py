@@ -10,17 +10,32 @@ st.set_page_config(
 )
 
 
-# ------------------------------------------------------------
-# Paths
-# ------------------------------------------------------------
+# ============================================================
+# PATHS
+# ============================================================
 ROOT_DIR = Path(__file__).resolve().parent.parent
 ASSETS_DIR = ROOT_DIR / "assets"
 
 
-# ------------------------------------------------------------
-# Styling
-# ------------------------------------------------------------
-st.markdown(
+# ============================================================
+# HELPERS
+# ============================================================
+def render_html(html: str) -> None:
+    """Render a raw HTML/CSS fragment with Streamlit's native HTML renderer."""
+    st.html(html.strip())
+
+
+# ============================================================
+# HOME BUTTON
+# ============================================================
+if st.button("← Back to Home", type="secondary"):
+    st.switch_page("app.py")
+
+
+# ============================================================
+# STYLING
+# ============================================================
+render_html(
     """
     <style>
         :root {
@@ -165,13 +180,6 @@ st.markdown(
             text-decoration: underline;
         }
 
-        .image-label {
-            color: var(--muted);
-            text-align: center;
-            font-size: 0.78rem;
-            margin-top: 0.35rem;
-        }
-
         @media (max-width: 780px) {
             .block-container {
                 padding-left: 1rem;
@@ -188,15 +196,14 @@ st.markdown(
             }
         }
     </style>
-    """,
-    unsafe_allow_html=True,
+    """
 )
 
 
-# ------------------------------------------------------------
-# Header
-# ------------------------------------------------------------
-st.markdown(
+# ============================================================
+# HEADER
+# ============================================================
+render_html(
     """
     <div class="brand-wrap">
         <div class="brand">
@@ -204,15 +211,14 @@ st.markdown(
             <div class="brand-tagline"><span>Validate</span> before you build.</div>
         </div>
     </div>
-    """,
-    unsafe_allow_html=True,
+    """
 )
 
 
-# ------------------------------------------------------------
-# What is ValidationLoop?
-# ------------------------------------------------------------
-st.markdown(
+# ============================================================
+# INTRO
+# ============================================================
+render_html(
     """
     <div class="info-card">
         <div class="section-title">What is ValidationLoop?</div>
@@ -221,11 +227,10 @@ st.markdown(
             validate business ideas before building them.
         </div>
     </div>
-    """,
-    unsafe_allow_html=True,
+    """
 )
 
-st.markdown(
+render_html(
     """
     <div class="info-card">
         <div class="section-title">How it works</div>
@@ -236,15 +241,14 @@ st.markdown(
             the next steps needed to validate it.
         </div>
     </div>
-    """,
-    unsafe_allow_html=True,
+    """
 )
 
 
-# ------------------------------------------------------------
-# Method / framework
-# ------------------------------------------------------------
-st.markdown(
+# ============================================================
+# VALIDATION APPROACH
+# ============================================================
+render_html(
     """
     <div class="info-card">
         <div class="section-title">Validation approach</div>
@@ -258,15 +262,14 @@ st.markdown(
             the platform guides the user step by step.
         </div>
     </div>
-    """,
-    unsafe_allow_html=True,
+    """
 )
 
 
-# ------------------------------------------------------------
-# What the tool provides
-# ------------------------------------------------------------
-st.markdown(
+# ============================================================
+# WHAT THE PLATFORM PROVIDES
+# ============================================================
+render_html(
     """
     <div class="info-card">
         <div class="section-title">What the platform provides</div>
@@ -332,15 +335,14 @@ st.markdown(
             </div>
         </div>
     </div>
-    """,
-    unsafe_allow_html=True,
+    """
 )
 
 
-# ------------------------------------------------------------
-# Broader validation scope
-# ------------------------------------------------------------
-st.markdown(
+# ============================================================
+# BROADER VALIDATION SCOPE
+# ============================================================
+render_html(
     """
     <div class="info-card">
         <div class="section-title">What else can be validated?</div>
@@ -354,15 +356,14 @@ st.markdown(
             them determine whether they should build it in the first place.
         </div>
     </div>
-    """,
-    unsafe_allow_html=True,
+    """
 )
 
 
-# ------------------------------------------------------------
-# Example loop
-# ------------------------------------------------------------
-st.markdown(
+# ============================================================
+# EXAMPLE LOOP
+# ============================================================
+render_html(
     """
     <div class="info-card">
         <div class="section-title">Example validation loop</div>
@@ -371,48 +372,31 @@ st.markdown(
             run experiment → share results → continue based on evidence.
         </div>
     </div>
-    """,
-    unsafe_allow_html=True,
+    """
 )
 
 
-# ------------------------------------------------------------
-# Screenshots supplied by the user
-# ------------------------------------------------------------
-st.markdown(
+# ============================================================
+# CONCEPT NOTE
+# ============================================================
+render_html(
     """
     <div class="info-card">
         <div class="section-title">See the concept in detail</div>
         <div class="muted-text">
-            These screenshots show the detailed product concept and the
-            step-by-step validation workflow described above.
+            The detailed product concept and step-by-step validation workflow
+            are represented by the project assets stored in the <code>assets</code>
+            folder. Screenshots are intentionally not rendered on this page.
         </div>
     </div>
-    """,
-    unsafe_allow_html=True,
+    """
 )
 
-image_files = [
-    ("validationloop-info-1.png", "Product concept and core validation idea"),
-    ("validationloop-info-2.png", "Example customer-discovery workflow"),
-    ("validationloop-info-3.png", "Iterative validation and evidence loop"),
-]
 
-for filename, label in image_files:
-    image_path = ASSETS_DIR / filename
-
-    if image_path.exists():
-        st.image(str(image_path), use_container_width=True)
-        st.markdown(
-            f"<div class='image-label'>{label}</div>",
-            unsafe_allow_html=True,
-        )
-
-
-# ------------------------------------------------------------
-# Contact
-# ------------------------------------------------------------
-st.markdown(
+# ============================================================
+# CONTACT
+# ============================================================
+render_html(
     """
     <div class="info-card">
         <div class="section-title">Contact</div>
@@ -424,6 +408,7 @@ st.markdown(
             <div class="muted-text">
                 Please email:
             </div>
+
             <div style="margin-top:0.35rem;">
                 <a href="mailto:y.india.main@gmail.com">
                     y.india.main@gmail.com
@@ -431,8 +416,7 @@ st.markdown(
             </div>
         </div>
     </div>
-    """,
-    unsafe_allow_html=True,
+    """
 )
 
 
